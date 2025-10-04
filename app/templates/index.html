@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>News</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 24 24%22><text y=%2218%22 font-size=%2218%22>🗞️</text></svg>">
+</head>
+<body>
+<header class="nav">
+  <div class="nav-left">
+    <div class="brand">🗞️ News</div>
+    <nav class="topics" id="topics">
+      <!-- category chips inserted by JS -->
+    </nav>
+  </div>
+  <div class="nav-right">
+    <button id="themeBtn" class="btn ghost" title="Toggle theme">🌗</button>
+    <a class="btn ghost" href="/docs" target="_blank" rel="noreferrer">API</a>
+  </div>
+</header>
+
+<main class="container">
+  <!-- (Optional) keep search; or delete this form if you only want categories -->
+  <form id="searchForm" class="searchbar">
+    <input id="q" placeholder="Search headlines…" autocomplete="off"/>
+    <button class="btn">Search</button>
+    <button class="btn ghost" id="resetBtn" type="button">Reset</button>
+  </form>
+
+  <section id="status" class="status"></section>
+  <section id="grid" class="grid"></section>
+  <div id="loader" class="loader hide">
+    <div class="skeleton-card"></div><div class="skeleton-card"></div><div class="skeleton-card"></div>
+  </div>
+</main>
+
+<script>
+  // --- Theme ---
+  const themeBtn = document.getElementById('themeBtn');
+  const storedTheme = localStorage.getItem('theme') || 'light';
+  document.documentElement.setAttribute('data-theme', storedTheme);
+  themeBtn.addEventListener('click', () => {
+    const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+  });
+
+  document.getElementById('themeBtn').addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
+  });
+
+  // --- State ---
+  let mode = 'trending';   // 'trending' | 'search' | 'topic'
+  let q = '';
+  let topic = '';
+  let skip = 0;
+  const limit = 30;
+  let loading = false;
+  let done = false;
+
+  // --- DOM ---
+  const topicsEl = document.getElementById('topics');
+  const grid = document.getElementById('grid');
+  const statusEl = document.getElementById('status');
+  const loader = document.getElementById('loader');
+  const qInput = document.getElementById('q');
+  const searchForm = document.getElementById('searchForm');
+  const resetBtn = document.getElementById('resetBtn');
+
+  // Build category chips from the API
+  async function loadCategories() {
+    const res = await fetch('/api/categories?limit=20');
+    const cats = await res.json();
+    // Add a leading "All" button
+    const items = [{name: 'all', count: 0}, ...cats];
+    topicsEl.innerHTML = items.map(c => `
+      <button class="chip" data-topic="${c.name}">${c.name}</button>
+    `).join('');
+  }
+
+  topicsEl.addEventListener('click', (e) => {
+    const btn = e.target.closest('.chip');
+    if (!btn) return;
+    const val = btn.dataset.topic;
+    if (val === 'all') {
+      topic = ''; mode = 'trending'; q = '';
+    } else {
+      topic = val; mode = 'topic'; q = '';
+    }
+    resetAndLoad();
+  });
+
+  const timeago = (dstr) => {
+    const d = new Date(dstr);
+    const s = Math.floor((Date.now() - d.getTime())/1000);
+    if (s < 60) return `${s}s ago`;
+    const m = Math.floor(s/60); if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m/60); if (h < 24) return `${h}h ago`;
+    const days = Math.floor(h/24); return `${days}d ago`;
+  };
+
+  const card = (a) => `
+    <a class="card" href="${a.url}" target="_blank" rel="noreferrer" data-id="${a._id}">
+      ${a.image ? `<div class="thumb" style="background-image:url('${a.image.replace(/"/g,'&quot;')}')"></div>` : `<div class="thumb thumb-fallback">📰</div>`}
+      <div class="content">
+        <h3 class="title">${a.title || ""}</h3>
+        ${a.excerpt ? `<p class="excerpt">${a.excerpt}</p>` : ``}
+        <div class="meta">
+          <span>${(a.topics||[]).slice(0,3).join(" • ")}</span>
+          <span>•</span>
+          <span>${new Date(a.publishedAt).toLocaleString()} (${timeago(a.publishedAt)})</span>
+        </div>
+      </div>
+    </a>
+  `;
+
+  function setStatus(msg, type="info") { statusEl.textContent = msg || ""; statusEl.className = `status ${type}`; }
+  function showLoader(v) { loader.classList.toggle('hide', !v); }
+  function clearGrid() { grid.innerHTML = ""; }
+
+  async function fetchPage() {
+    if (loading || done) return [];
+    loading = true; showLoader(true);
+    let url = '';
+    if (mode === 'trending') {
+      url = `/api/trending?hours=48&skip=${skip}&limit=${limit}`;
+    } else if (mode === 'topic') {
+      url = `/api/trending?hours=72&topic=${encodeURIComponent(topic)}&skip=${skip}&limit=${limit}`;
+    } else {
+      url = `/api/search?q=${encodeURIComponent(q)}&skip=${skip}&limit=${limit}`;
+    }
+    const res = await fetch(url);
+    const data = await res.json();
+    loading = false; showLoader(false);
+    if (!Array.isArray(data) || data.length === 0) {
+      done = true;
+      if (skip === 0) setStatus("No results. Try another category.", "muted");
+      return [];
+    }
+    skip += data.length;
+    return data;
+  }
+
+  async function loadMore() {
+    const items = await fetchPage();
+    if (items.length) {
+      setStatus("");
+      grid.insertAdjacentHTML('beforeend', items.map(card).join(''));
+    }
+  }
+
+  function resetAndLoad() {
+    skip = 0; done = false; clearGrid();
+    if (mode === 'trending') { setStatus("Trending in the last 48 hours…", "muted"); }
+    if (mode === 'topic') { setStatus(`Filtering by “${topic}”`, "muted"); }
+    if (mode === 'search') { setStatus(`Results for “${q}”`, "muted"); }
+    loadMore();
+  }
+
+  // Optional: search still works
+  searchForm.addEventListener('submit', (e) => {
+    e.preventDefault();
+    q = qInput.value.trim();
+    if (!q) return;
+    mode = 'search'; topic = '';
+    resetAndLoad();
+  });
+  resetBtn.addEventListener('click', () => {
+    qInput.value = ""; q = ""; topic = ""; mode = 'trending';
+    resetAndLoad();
+  });
+
+  // Infinite scroll
+  window.addEventListener('scroll', () => {
+    if (loading || done) return;
+    if (window.innerHeight + window.scrollY >= document.body.offsetHeight - 600) loadMore();
+  });
+
+  // initial
+  setStatus("Loading categories…", "muted");
+  loadCategories().then(() => {
+    setStatus("Loading trending…", "muted");
+    loadMore();
+  });
+</script>
+
+</body>
+</html>

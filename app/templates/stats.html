@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Stats</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header class="nav">
+  <div class="nav-left">
+    <div class="brand">🗞️ News — Stats</div>
+  </div>
+  <div class="nav-right">
+    <a class="btn ghost" href="/">← Back</a>
+  </div>
+</header>
+
+<main class="container">
+  <section class="status" id="summary"></section>
+
+  <div style="display:grid; gap:18px;">
+    <canvas id="byTopic"></canvas>
+    <canvas id="byDay"></canvas>
+    <canvas id="bySource"></canvas>
+  </div>
+</main>
+
+<script>
+(async () => {
+  const res = await fetch('/api/debug/stats?days=14');
+  const data = await res.json();
+
+  // Summary
+  const latest = data.latestPublishedAt ? new Date(data.latestPublishedAt).toLocaleString() : '—';
+  document.getElementById('summary').textContent =
+    `Total articles: ${data.total.toLocaleString()} • Latest: ${latest}`;
+
+  // Helpers
+  const topicLabels = data.byTopic.map(d => d.topic);
+  const topicCounts = data.byTopic.map(d => d.count);
+
+  const dayLabels = data.byDay.map(d => d.day);
+  const dayCounts = data.byDay.map(d => d.count);
+
+  const sourceLabels = data.bySource.map(d => d.source || 'Unknown');
+  const sourceCounts = data.bySource.map(d => d.count);
+
+  // Charts
+  new Chart(document.getElementById('byTopic'), {
+    type: 'bar',
+    data: { labels: topicLabels, datasets: [{ label: 'Articles by topic (top 20)', data: topicCounts }] },
+    options: { responsive: true, plugins: { legend: { display: false } } }
+  });
+
+  new Chart(document.getElementById('byDay'), {
+    type: 'line',
+    data: { labels: dayLabels, datasets: [{ label: 'Articles per day (last 14 days)', data: dayCounts }] },
+    options: { responsive: true, scales: { y: { beginAtZero: true } } }
+  });
+
+  new Chart(document.getElementById('bySource'), {
+    type: 'bar',
+    data: { labels: sourceLabels, datasets: [{ label: 'Top sources', data: sourceCounts }] },
+    options: { indexAxis: 'y', responsive: true, plugins: { legend: { display: false } } }
+  });
+})();
+</script>
+</body>
+</html>
