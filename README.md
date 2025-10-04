@@ -1,30 +1,54 @@
-# News Aggregator (FastAPI + MongoDB)
+# 🗞️ News Aggregator
 
-Python web app that ingests articles from multiple news APIs, stores them in MongoDB,
-and serves `/feed`, `/trending`, and `/search` endpoints with a tiny web UI.
+A **full-stack news aggregation web app** built with **FastAPI + MongoDB + Vanilla JS**.  
+It collects, stores, and displays fresh articles from multiple sources with **search, category filtering, infinite scroll, and dark/light mode**.
 
-## Quick start (Docker)
-```bash
-cp .env.example .env   # fill in keys if you have them
-docker compose up --build
-# open http://localhost:8000
-```
+---
 
-## Quick start (local dev)
-```bash
-python -m venv .venv && source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-cp .env.example .env  # edit MONGO_URI if using Atlas
-uvicorn app.main:app --reload
-```
+## 🚀 Features
 
-### Endpoints
-- `GET /api/trending?topic=&hours=48&limit=50`
-- `GET /api/feed?topic=&limit=50`
-- `GET /api/search?q=keyword&limit=50`
-- `POST /api/click/{article_id}`
+- **Backend (FastAPI + MongoDB Atlas)**
+  - REST API endpoints for trending, search, categories, and ingestion.
+  - Stores thousands of articles with metadata (`title`, `excerpt`, `url`, `topics`, `publishedAt`, etc.).
+  - Ingestion pipeline parses RSS feeds and APIs, scoring articles by freshness and relevance.
+  - Admin routes for manual refresh and health monitoring.
 
-### Notes
-- Uses APScheduler to fetch periodically (every 10 minutes by default).
-- Dedupes using a `urlHash` unique index.
-- Search uses simple regex by default; upgrade to Atlas Search later.
+- **Frontend (HTML + CSS + JS)**
+  - Clean UI with **infinite scroll** for loading articles.
+  - **Dynamic category chips** powered by MongoDB aggregation.
+  - **Search bar + reset button** for full-text search across titles and excerpts.
+  - **↻ Refresh button** to fetch the latest news instantly.
+
+- **Architecture**
+  - Asynchronous database access with Motor.
+  - MongoDB indexes for fast queries and text search.
+  - Ready for deployment with Docker / Render / Fly.io.
+
+
+## ⚡ API Endpoints
+
+| Endpoint              | Method | Description                                |
+|-----------------------|--------|--------------------------------------------|
+| `/api/trending`       | GET    | Get trending articles (default last 12h)   |
+| `/api/search?q=term`  | GET    | Search articles by keyword                 |
+| `/api/categories`     | GET    | Top categories with counts                 |
+| `/api/admin/ingest`   | POST   | Trigger ingestion of latest feeds          |
+| `/api/health`         | GET    | DB health + total count of articles        |
+
+---
+
+## 🛠️ Tech Stack
+
+- **Backend**: FastAPI, Python 3.11+, Motor (MongoDB async driver)
+- **Database**: MongoDB Atlas
+- **Frontend**: HTML5, CSS3, JavaScript (Vanilla)
+- **Other**: Uvicorn, Jinja2 templates
+
+---
+
+## 🏗️ Setup & Run Locally
+
+1. **Clone repo**
+   ```bash
+   git clone https://github.com/your-username/news-aggregator.git
+   cd news-aggregator
